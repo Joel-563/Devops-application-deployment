@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+*.crt
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+node_modules/
+coverage/
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+
+# Keep build/ tracked for this project because Dockerfile copies build/ into nginx.
