@@ -49,7 +49,7 @@ pipeline{
       steps{
         withCredentials([sshUserPrivateKey(credentialsId: 'ssh-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
           sh '''
-            ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@<your-server-ip> << EOF
+            ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@34.192.210.74 << EOF
               docker pull $IMAGE_URI_UNIQUE
               docker stop capstone-app || true
               docker rm capstone-app || true
