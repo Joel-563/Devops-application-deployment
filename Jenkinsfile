@@ -2,8 +2,8 @@ pipeline{
   agent any
 
   parameters {
-    string(name: 'IMAGE_NAME_PROD', defaultValue: 'joelrobinson791/capstone-app', description: 'Docker image name for production'),
-    string(name: 'IMAGE_NAME_DEV', defaultValue: 'joelrobinson791/capstone-app-dev', description: 'Docker image name for development'),
+    string(name: 'IMAGE_NAME_PROD', defaultValue: 'joelrobinson791/capstone-app', description: 'Docker image name for production')
+    string(name: 'IMAGE_NAME_DEV', defaultValue: 'joelrobinson791/capstone-app-dev', description: 'Docker image name for development')
     string(name: 'VERSION', defaultValue: 'latest', description: 'Docker image version')
   }
 
