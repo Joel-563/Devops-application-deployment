@@ -25,7 +25,7 @@ pipeline{
     stage ('image build and docker push'){
       steps {
         script {
-          if (env.GIT_BRANCH == 'main'){
+          if (env.GIT_BRANCH == 'origin/main'){
             env.IMAGE_URI_REDABLE = "${params.IMAGE_NAME_PROD}:${params.VERSION}"
             env.IMAGE_URI_UNIQUE = "${params.IMAGE_NAME_PROD}:${params.VERSION}-${env.COMMIT_HASH}"
           }
