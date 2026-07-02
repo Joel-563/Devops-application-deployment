@@ -10,7 +10,7 @@ pipeline{
   stages {
     stage ('check branch'){
       steps {
-        echo "Triggered by branch: ${env.BRANCH_NAME}"
+        echo "Triggered by branch: ${env.GIT_BRANCH}"
       }
     }
 
@@ -25,7 +25,7 @@ pipeline{
     stage ('image build and docker push'){
       steps {
         script {
-          if (env.BRANCH_NAME == 'main'){
+          if (env.GIT_BRANCH == 'main'){
             env.IMAGE_URI_REDABLE = "${params.IMAGE_NAME_PROD}:${params.VERSION}"
             env.IMAGE_URI_UNIQUE = "${params.IMAGE_NAME_PROD}:${params.VERSION}-${env.COMMIT_HASH}"
           }
