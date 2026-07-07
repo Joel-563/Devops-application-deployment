@@ -1,18 +1,18 @@
-# Capstone OnlineShop Deployment Walkthrough
+# Capstone OnlineShop DevOps Walkthrough
 
-This project is a containerized React e-commerce application served with Nginx and deployed through a Jenkins CI/CD pipeline. It also includes a monitoring stack with Prometheus, Blackbox Exporter, and Grafana running on a shared Docker network.
+This project demonstrates a complete DevOps workflow for a React e-commerce application called **OnlineShop**. The app is containerized with Docker, served with Nginx, pushed to Docker Hub, deployed through Jenkins to an AWS EC2 instance, and monitored with a local Docker-based Prometheus, Blackbox Exporter, and Grafana stack.
 
-The monitoring setup was configured and tested in a local Docker environment on `localhost`. This approach was chosen to avoid additional AWS infrastructure costs while still demonstrating application health checks, metrics collection, and dashboard visualization.
-
-The walkthrough below is designed to be read alongside the screenshots in the `screenshots/` folder. If your screenshot filenames are different, update the image paths in this README.
+The monitoring stack was intentionally configured on `localhost` in a local Docker environment because running extra monitoring infrastructure on AWS would increase project costs. This still demonstrates health checks, Prometheus metrics, Blackbox probing, and Grafana visualization without requiring additional cloud resources.
 
 ## Project Overview
 
 - Application: React single-page e-commerce app
 - Web server: Nginx
 - Container image: `joelrobinson791/capstone-app`
-- CI/CD: Jenkins pipeline
-- Monitoring: Prometheus, Blackbox Exporter, and Grafana
+- CI/CD: Jenkins multibranch pipeline
+- Registry: Docker Hub
+- Deployment target: AWS EC2
+- Local monitoring: Prometheus, Blackbox Exporter, and Grafana
 - App port: `80`
 - Grafana port: `3000`
 - Prometheus port: `9090`
@@ -20,61 +20,40 @@ The walkthrough below is designed to be read alongside the screenshots in the `s
 
 ## Architecture
 
-The application is built into static frontend files under `build/`. The `Dockerfile` copies those files into an Nginx container and serves them from `/web/data/`.
-
 ```text
-React build files
+React build output
       |
       v
-Docker image with Nginx
+Nginx Docker image
       |
       v
 Docker Hub
       |
       v
-Production server
+Jenkins pipeline
       |
       v
-Prometheus + Blackbox Exporter + Grafana monitoring
+AWS EC2 deployment
+
+Local monitoring environment:
+
+Docker Compose
+      |
+      +-- OnlineShop web container
+      +-- Prometheus
+      +-- Blackbox Exporter
+      +-- Grafana
 ```
 
 ## Screenshot Walkthrough
 
-### 1. Home Page
+### 1. Build the Docker Image
 
-![Home page](screenshots/01-home-page.png)
+The application is packaged into an Nginx image using the `Dockerfile`. The screenshot shows Docker copying the React build files, applying the Nginx config, exposing port `80`, and tagging the image as `capstone-app:latest`.
 
-The home page is the main shopping view of the OnlineShop application. Users can browse products, open the cart, and navigate to login or signup from the top navigation bar.
+![Docker image build output](<screenshots/Screenshot 2026-06-30 182038.png>)
 
-### 2. Signup Page
-
-![Signup page](screenshots/02-signup-page.png)
-
-New users can create an account from the signup page by entering a user name, email address, and password. After signup, the app redirects users toward the login flow.
-
-### 3. Login Page
-
-![Login page](screenshots/03-login-page.png)
-
-Existing users log in with their email address and password. After a successful login, the application stores the user token locally and displays authenticated navigation options such as orders and logout.
-
-### 4. Cart Page
-
-![Cart page](screenshots/04-cart-page.png)
-
-The cart page shows the selected products, quantities, and totals. Users can continue shopping or proceed through the purchase flow.
-
-### 5. Orders Page
-
-![Orders page](screenshots/05-orders-page.png)
-
-After checkout, users can view their order summary. The orders table includes product details, quantity, total amount, payment status, delivery status, and payment intent information.
-
-### 6. Docker Image Build
-
-![Docker build](screenshots/06-docker-build.png)
-
-The app is packaged using the `Dockerfile`:
+The image is built from this Dockerfile:
 
 ```dockerfile
 FROM nginx:stable-alpine
@@ -83,60 +62,209 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 ```
 
-Nginx serves the React app and falls back to `index.html` for client-side routing.
+### 2. Test the Container Locally
 
-### 7. Jenkins Pipeline
+The container was run locally on port `80` to confirm the app could be served by Nginx.
 
-![Jenkins pipeline](screenshots/07-jenkins-pipeline.png)
+![Docker container run attempt](<screenshots/Screenshot 2026-06-30 182047.png>)
 
-The `Jenkinsfile` automates the build and deployment workflow:
+During testing, the Nginx logs showed a configuration syntax error. This was useful because it confirmed the container was starting and reading the custom Nginx config, but the config needed to be corrected.
 
-1. Detects the branch that triggered the pipeline.
-2. Captures the short Git commit hash.
-3. Builds a Docker image.
-4. Logs in to Docker Hub using Jenkins credentials.
-5. Pushes both a unique image tag and a readable image tag.
-6. Connects to the deployment server over SSH.
-7. Pulls and runs the new container on port `80`.
+![Nginx configuration error](<screenshots/Screenshot 2026-06-30 182056.png>)
 
-The pipeline uses separate image names for production and development:
+The fixed Nginx config serves the React build directory and falls back to `index.html` for client-side routes.
 
-```text
-Production image: joelrobinson791/capstone-app
-Development image: joelrobinson791/capstone-app-dev
+![Nginx config in editor](<screenshots/Screenshot 2026-06-30 183152.png>)
+
+After the fix, the OnlineShop app loaded successfully at `localhost`.
+
+![OnlineShop running on localhost](<screenshots/Screenshot 2026-06-30 183121.png>)
+
+### 3. Push the Image to Docker Hub
+
+After the local image worked, it was pushed to Docker Hub. The repository shows the `v1` image tag being available.
+
+![Docker Hub image tag](<screenshots/Screenshot 2026-06-30 184847.png>)
+
+### 4. Run with Docker Compose
+
+Docker Compose was used to run the web container. The screenshot shows the `web_1` container starting and Nginx becoming ready.
+
+![Docker Compose startup logs](<screenshots/Screenshot 2026-07-01 125414.png>)
+
+The Nginx access logs confirm the browser requested the React app files from `localhost`.
+
+![Nginx access logs](<screenshots/Screenshot 2026-07-01 125445.png>)
+
+The Compose setup later expanded to include the local monitoring stack:
+
+```yaml
+services:
+  web:
+    image: joelrobinson791/capstone-app:v1
+    networks:
+      - monitoring
+    ports:
+      - "80:80"
+
+  grafana:
+    image: grafana/grafana:nightly-slim
+    networks:
+      - monitoring
+    ports:
+      - "3000:3000"
+
+  prometheus:
+    image: prom/prometheus:latest
+    networks:
+      - monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prom.yml:/etc/prometheus/prometheus.yml
+
+  blackbox-exporter:
+    image: ubuntu/blackbox-exporter:0.28-26.04_stable
+    networks:
+      - monitoring
+    ports:
+      - "9115:9115"
+
+networks:
+  monitoring:
+    external: true
 ```
 
-### 8. Running Containers
+## Jenkins CI/CD Setup
 
-![Running containers](screenshots/08-running-containers.png)
+### 5. Configure a Multibranch Pipeline
 
-The project can run the app and monitoring services together with Docker Compose:
+Jenkins was configured as a multibranch pipeline so it could detect and run builds from the repository branches.
+
+![Jenkins multibranch configuration](<screenshots/Screenshot 2026-07-02 143906.png>)
+
+GitHub credentials were added in Jenkins so the pipeline could access the repository.
+
+![Jenkins GitHub credentials](<screenshots/Screenshot 2026-07-02 144429.png>)
+
+The build configuration was set to use the repository `Jenkinsfile`.
+
+![Jenkinsfile build configuration](<screenshots/Screenshot 2026-07-02 144959.png>)
+
+The pipeline was configured to build both `main` and `dev` branches.
+
+![Jenkins branches to build](<screenshots/Screenshot 2026-07-02 145008.png>)
+
+The multibranch trigger section was reviewed while setting up branch scanning.
+
+![Jenkins multibranch trigger](<screenshots/Screenshot 2026-07-02 145723.png>)
+
+### 6. Add and Fix the Jenkinsfile
+
+The Jenkinsfile was added and committed to the repository.
+
+![Jenkinsfile committed](<screenshots/Screenshot 2026-07-02 181526.png>)
+
+GitHub shows both `dev` and `main` branches in the repository.
+
+![GitHub dev and main branches](<screenshots/Screenshot 2026-07-02 183216.png>)
+
+The first Jenkins run exposed a Groovy syntax issue in the Jenkinsfile.
+
+![Jenkins Groovy syntax error](<screenshots/Screenshot 2026-07-02 181511.png>)
+
+After fixing the Jenkinsfile, the pipeline started running and reached the branch check stage.
+
+![Jenkins pipeline branch check](<screenshots/Screenshot 2026-07-02 183200.png>)
+
+Another pipeline run found a shell substitution issue during the image build and push stage.
+
+![Jenkins bad substitution error](<screenshots/Screenshot 2026-07-02 191114.png>)
+
+The deployment stage also exposed SSH script formatting issues, including unexpected redirection and EOF handling errors.
+
+![Jenkins SSH redirection error](<screenshots/Screenshot 2026-07-02 191640.png>)
+
+![Jenkins EOF command error](<screenshots/Screenshot 2026-07-02 191926.png>)
+
+The Jenkins build history shows several failed runs while the pipeline was being debugged.
+
+![Jenkins failed build history](<screenshots/Screenshot 2026-07-02 192151.png>)
+
+After the fixes, Jenkins successfully pulled the Docker image and completed the deployment stage.
+
+![Jenkins successful deployment](<screenshots/Screenshot 2026-07-02 192208.png>)
+
+The deployed OnlineShop app was then reachable from the EC2 public IP address.
+
+![OnlineShop deployed on EC2](<screenshots/Screenshot 2026-07-02 192309.png>)
+
+## AWS EC2 Deployment
+
+Docker was installed and enabled on the EC2 instance so Jenkins could deploy the container remotely.
+
+![Docker setup on EC2](<screenshots/Screenshot 2026-07-02 183546.png>)
+
+The Jenkins deployment stage performs these actions on the server:
+
+1. Pulls the new image from Docker Hub.
+2. Stops the old `capstone-app` container if it exists.
+3. Removes the old container if it exists.
+4. Runs the new image on port `80`.
+
+The deployment target shown in the Jenkinsfile is:
+
+```text
+34.192.210.74
+```
+
+## Local Monitoring Setup
+
+### 7. Start Prometheus, Grafana, and Blackbox Exporter Locally
+
+Because of AWS cost considerations, monitoring was demonstrated locally instead of hosting Prometheus and Grafana in AWS. The app image was run alongside the monitoring tools inside a local Docker environment.
+
+The running containers include the web app, Prometheus, Grafana, and Blackbox Exporter.
+
+![Local monitoring containers](<screenshots/Screenshot 2026-07-07 175759.png>)
+
+Blackbox Exporter was pulled locally and added to the monitoring setup.
+
+![Blackbox Exporter image pull](<screenshots/Screenshot 2026-07-07 175813.png>)
+
+The full local monitoring stack can be started with:
 
 ```bash
 docker network create monitoring
 docker compose up -d
 ```
 
-The Compose file starts:
+Use these URLs locally:
 
-- `web`: the OnlineShop app on port `80`
-- `grafana`: dashboards on port `3000`
-- `prometheus`: metrics on port `9090`
-- `blackbox-exporter`: HTTP probing on port `9115`
-
-The services use an existing external Docker network:
-
-```yaml
-networks:
-  monitoring:
-    external: true
+```text
+Application:       http://localhost
+Grafana:           http://localhost:3000
+Prometheus:        http://localhost:9090
+Blackbox Exporter: http://localhost:9115
 ```
 
-### 9. Prometheus Targets
+### 8. Confirm Blackbox Exporter
 
-![Prometheus targets](screenshots/09-prometheus-targets.png)
+Blackbox Exporter is available on `localhost:9115`.
 
-Prometheus is configured in `prom.yml`. It scrapes Prometheus itself and uses Blackbox Exporter to check the application health endpoint through HTTP probing.
+![Blackbox Exporter homepage](<screenshots/Screenshot 2026-07-07 181418.png>)
+
+After probing the app, Blackbox Exporter shows successful checks for the `http_2xx` module against `http://web:80`.
+
+![Blackbox successful probes](<screenshots/Screenshot 2026-07-07 190409.png>)
+
+### 9. Confirm Prometheus
+
+Prometheus is available on `localhost:9090` and is used as the metrics source for the monitoring setup.
+
+![Prometheus query page](<screenshots/Screenshot 2026-07-07 181427.png>)
+
+The Prometheus config in `prom.yml` uses Blackbox Exporter to check the local web container:
 
 ```yaml
 scrape_configs:
@@ -152,46 +280,99 @@ scrape_configs:
     static_configs:
       - targets:
           - "http://web:80"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+
+      - source_labels: [__param_target]
+        target_label: capstone
+
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
 ```
 
-### 10. Grafana Dashboard
+### 10. Confirm Grafana
 
-![Grafana dashboard](screenshots/10-grafana-dashboard.png)
+Grafana is available on `localhost:3000`.
 
-Grafana connects to Prometheus and visualizes the app health metrics. A typical dashboard can show whether the web app is reachable, probe duration, HTTP status, and service availability over time.
+![Grafana login page](<screenshots/Screenshot 2026-07-07 181436.png>)
+
+Grafana was connected to Prometheus and used to visualize the `probe_success` metric for the `app-health` job.
+
+![Grafana probe success metric](<screenshots/Screenshot 2026-07-07 191826.png>)
+
+The graph shows `probe_success` staying at `1` while the web app is reachable.
+
+### 11. Validate Failure Detection
+
+The local `web` container was stopped to confirm that monitoring detects downtime.
+
+![Stopping the local web container](<screenshots/Screenshot 2026-07-07 191940.png>)
+
+After the app stopped, the Grafana graph dropped from `1` to `0`, showing that the monitoring stack detected the failed health probe.
+
+![Grafana probe failure after app stop](<screenshots/Screenshot 2026-07-07 192006.png>)
+
+The browser also confirmed that `localhost` was no longer reachable after stopping the container.
+
+![Localhost refused connection](<screenshots/Screenshot 2026-07-07 192015.png>)
+
+## CI/CD Flow
+
+The Jenkins pipeline follows this process:
+
+1. Detect the branch that triggered the build.
+2. Read the short Git commit hash.
+3. Choose the production or development Docker image name.
+4. Build the Docker image.
+5. Log in to Docker Hub using Jenkins credentials.
+6. Push a unique image tag and a readable image tag.
+7. SSH into the EC2 instance.
+8. Pull and run the new container.
+
+The Jenkins pipeline expects these credential IDs:
+
+```text
+docker-hub-credentials
+ssh-credentials
+```
+
+The image naming strategy is:
+
+```text
+main branch:  joelrobinson791/capstone-app
+other branch: joelrobinson791/capstone-app-dev
+```
 
 ## Local Run
 
-Make sure Docker is installed and the `monitoring` network exists:
+Create the external Docker network if it does not already exist:
 
 ```bash
 docker network create monitoring
 ```
 
-Start the full stack:
+Start the stack:
 
 ```bash
 docker compose up -d
 ```
 
-Open the services:
+Check the running containers:
 
-```text
-Application: http://localhost
-Grafana:     http://localhost:3000
-Prometheus:  http://localhost:9090
-Blackbox:    http://localhost:9115
+```bash
+docker compose ps
 ```
 
-To stop the stack:
+Stop the stack:
 
 ```bash
 docker compose down
 ```
 
-## Manual Image Build
+## Manual Docker Build
 
-You can build the application image manually with:
+Build the Docker image manually:
 
 ```bash
 docker build -t joelrobinson791/capstone-app:v1 .
@@ -205,7 +386,7 @@ Or use the helper script:
 
 ## Manual Deployment
 
-The deployment helper pulls an image and runs it on port `80`:
+The helper script pulls and runs the selected image:
 
 ```bash
 ./deploy-instance.sh
@@ -217,34 +398,6 @@ Default image:
 joelrobinson791/capstone-app:v1
 ```
 
-## CI/CD Flow
-
-The Jenkins pipeline expects these credentials to exist in Jenkins:
-
-```text
-docker-hub-credentials
-ssh-credentials
-```
-
-On the `main` branch, Jenkins builds and pushes the production image. On other branches, it builds and pushes the development image. Each build gets:
-
-- A readable tag, such as `latest`
-- A unique tag that includes the short commit hash
-
-After pushing the image, Jenkins deploys it to the configured server by pulling the new image and restarting the running container.
-
-## Monitoring Flow
-
-For cost control, the monitoring stack was run locally with Docker instead of being hosted on AWS. This kept the project affordable while still showing how Prometheus, Blackbox Exporter, and Grafana can monitor the deployed web application.
-
-The monitoring setup checks the web application through Blackbox Exporter:
-
-```text
-Prometheus -> Blackbox Exporter -> OnlineShop web container
-```
-
-This makes it possible to monitor the app from the outside, similar to how a user or browser would reach it.
-
 ## Useful Commands
 
 ```bash
@@ -255,28 +408,40 @@ docker compose logs grafana
 docker compose logs blackbox-exporter
 ```
 
-Check that the app is reachable:
+Check the app:
 
 ```bash
 curl http://localhost
 ```
 
-Check Prometheus targets:
+Open Prometheus targets:
 
 ```text
 http://localhost:9090/targets
+```
+
+Open Blackbox Exporter:
+
+```text
+http://localhost:9115
+```
+
+Open Grafana:
+
+```text
+http://localhost:3000
 ```
 
 ## Repository Files
 
 ```text
 Dockerfile             Builds the Nginx image for the React app
-nginx.conf             Serves the React build and supports client-side routes
-docker-compose.yaml    Runs the app and monitoring stack
+nginx.conf             Serves the React build and supports client-side routing
+docker-compose.yaml    Runs the app and local monitoring stack
 prom.yml               Prometheus scrape configuration
-Jenkinsfile            CI/CD pipeline for build, push, and deployment
+Jenkinsfile            Jenkins CI/CD pipeline
 build-image.sh         Manual Docker image build helper
 deploy-instance.sh     Manual deployment helper
 build/                 Production React build output
-screenshots/           Walkthrough screenshots for this README
+screenshots/           Project walkthrough screenshots
 ```
