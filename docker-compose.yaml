@@ -1,5 +1,31 @@
 ﻿services:
   web:
     image: joelrobinson791/capstone-app:v1
+    networks:
+      - monitoring
     ports:
       - "80:80"
+  grafana:
+    image: grafana/grafana:nightly-slim
+    networks:
+      - monitoring
+    ports:
+      - "3000:3000"
+  prometheus:
+    image: prom/prometheus:latest
+    networks:
+      - monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prom.yml:/etc/prometheus/prometheus.yml
+  blackbox-exporter:
+    image: ubuntu/blackbox-exporter:0.28-26.04_stable
+    networks:
+      - monitoring
+    ports:
+      - "9115:9115"
+
+networks:
+  monitoring:
+    external: true
