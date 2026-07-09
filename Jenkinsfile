@@ -1,4 +1,4 @@
-pipeline{
+pipeline {
   agent any
 
   parameters {
@@ -8,13 +8,13 @@ pipeline{
   }
 
   stages {
-    stage ('check branch'){
+    stage('check branch') {
       steps {
-        echo "Triggered by branch: ${env.GIT_BRANCH}"
+        echo "Triggered by branch: ${env.BRANCH_NAME}"
       }
     }
 
-    stage ('pre-build'){
+    stage('pre-build') {
       steps {
         script {
           env.COMMIT_HASH = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
@@ -22,39 +22,67 @@ pipeline{
       }
     }
 
-    stage ('image build and docker push'){
+    stage('image build and docker push') {
       steps {
         script {
-          if (env.GIT_BRANCH == 'origin/main'){
-            env.IMAGE_URI_REDABLE = "${params.IMAGE_NAME_PROD}:${params.VERSION}"
+          if (env.BRANCH_NAME == 'main') {
+            env.IMAGE_URI_READABLE = "${params.IMAGE_NAME_PROD}:${params.VERSION}"
             env.IMAGE_URI_UNIQUE = "${params.IMAGE_NAME_PROD}:${params.VERSION}-${env.COMMIT_HASH}"
-          }
-          else {
-            env.IMAGE_URI_REDABLE = "${params.IMAGE_NAME_DEV}:${params.VERSION}"
+          } else {
+            env.IMAGE_URI_READABLE = "${params.IMAGE_NAME_DEV}:${params.VERSION}"
             env.IMAGE_URI_UNIQUE = "${params.IMAGE_NAME_DEV}:${params.VERSION}-${env.COMMIT_HASH}"
           }
-            sh "docker build -t ${env.IMAGE_URI_UNIQUE} ."
-            echo "login to docker hub"
-            withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-              sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-            }
-            sh "docker push ${env.IMAGE_URI_UNIQUE}"
-            sh "docker tag ${env.IMAGE_URI_UNIQUE} ${env.IMAGE_URI_REDABLE}"
-            sh "docker push ${env.IMAGE_URI_REDABLE}"
+
+          sh "docker build -t ${env.IMAGE_URI_UNIQUE} ."
+
+          echo 'login to docker hub'
+          withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+            sh 'printf "%s" "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin'
+          }
+
+          sh "docker push ${env.IMAGE_URI_UNIQUE}"
+          sh "docker tag ${env.IMAGE_URI_UNIQUE} ${env.IMAGE_URI_READABLE}"
+          sh "docker push ${env.IMAGE_URI_READABLE}"
         }
       }
     }
 
-    stage ('deploy to server (instance)'){
-      steps{
-        withCredentials([sshUserPrivateKey(credentialsId: 'ssh-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
-          sh '''ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@34.192.210.74 << EOF
-docker pull $IMAGE_URI_UNIQUE
+    stage('deploy to server (instance)') {
+      when {
+        anyOf {
+          branch 'main'
+          branch 'dev'
+        }
+      }
+      steps {
+        script {
+          if (env.BRANCH_NAME == 'main') {
+            withCredentials([
+              sshUserPrivateKey(credentialsId: 'ssh-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER'),
+              usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')
+            ]) {
+              sh '''ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@34.192.210.74 << EOF
+set -e
+printf "%s" "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+docker pull "$IMAGE_URI_UNIQUE"
 docker stop capstone-app || true
 docker rm capstone-app || true
-docker run -d --name capstone-app -p 80:80 $IMAGE_URI_UNIQUE
+docker run -d --name capstone-app -p 80:80 "$IMAGE_URI_UNIQUE"
 EOF
 '''
+            }
+          } else {
+            withCredentials([sshUserPrivateKey(credentialsId: 'ssh-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')]) {
+              sh '''ssh -o StrictHostKeyChecking=no -i $SSH_KEY $SSH_USER@34.192.210.74 << EOF
+set -e
+docker pull "$IMAGE_URI_UNIQUE"
+docker stop capstone-app || true
+docker rm capstone-app || true
+docker run -d --name capstone-app -p 80:80 "$IMAGE_URI_UNIQUE"
+EOF
+'''
+            }
+          }
         }
       }
     }
