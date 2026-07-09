@@ -4,11 +4,14 @@ This project demonstrates a complete DevOps workflow for a React e-commerce appl
 
 The monitoring stack was intentionally configured on `localhost` in a local Docker environment because running extra monitoring infrastructure on AWS would increase project costs. This still demonstrates health checks, Prometheus metrics, Blackbox probing, and Grafana visualization without requiring additional cloud resources.
 
+This README was updated after the redo review to include clearer Jenkins successful build console output, successful Docker Hub image pull and deployment output, EC2 deployment proof, and monitoring screenshots for evaluation.
+
 ## Project Overview
 
 - Application: React single-page e-commerce app
 - Web server: Nginx
-- Container image: `joelrobinson791/capstone-app`
+- Production image: `joelrobinson791/capstone-app`
+- Development image: `joelrobinson791/capstone-app-dev`
 - CI/CD: Jenkins multibranch pipeline
 - Registry: Docker Hub
 - Deployment target: AWS EC2
@@ -17,6 +20,34 @@ The monitoring stack was intentionally configured on `localhost` in a local Dock
 - Grafana port: `3000`
 - Prometheus port: `9090`
 - Blackbox Exporter port: `9115`
+
+## Redo Evidence Added After Review
+
+The reviewer feedback asked for clearer proof of Jenkins build success, EC2 deployment, and monitoring output. The following evidence was added to make those results easy to verify.
+
+### Jenkins Successful Console Output
+
+The Jenkins multibranch pipeline detected the `dev` branch, built the Docker image, pushed it to Docker Hub, pulled the public development image on the server, recreated the container, and ended with `Finished: SUCCESS`.
+
+![Jenkins dev branch successful console output](<screenshots/Screenshot 2026-07-09 130103.png>)
+
+The `main` branch run detected `origin/main`, logged in to Docker Hub on the EC2 instance, pulled the private production image, recreated the running container, and also completed successfully.
+
+![Jenkins main branch successful console output](<screenshots/Screenshot 2026-07-09 130432.png>)
+
+### EC2 Deployment Proof
+
+The AWS EC2 instance used for deployment is running and has the public IP address `34.192.210.74`.
+
+![AWS EC2 app server running](<screenshots/Screenshot 2026-07-09 130714.png>)
+
+The OnlineShop application is reachable from the EC2 public IP address after Jenkins deployment.
+
+![OnlineShop deployed from EC2 public IP](<screenshots/Screenshot 2026-07-09 130735.png>)
+
+### Monitoring Proof
+
+The monitoring stack uses Prometheus, Blackbox Exporter, and Grafana in the local Docker environment. Screenshots for the running containers, Blackbox probe result, Prometheus configuration, Grafana dashboard, and failure detection are included in the monitoring section below.
 
 ## Architecture
 
@@ -191,7 +222,7 @@ The Jenkins build history shows several failed runs while the pipeline was being
 
 ![Jenkins failed build history](<screenshots/Screenshot 2026-07-02 192151.png>)
 
-After the fixes, Jenkins successfully pulled the Docker image and completed the deployment stage.
+After the initial fixes, Jenkins successfully pulled the Docker image and completed the deployment stage.
 
 ![Jenkins successful deployment](<screenshots/Screenshot 2026-07-02 192208.png>)
 
@@ -199,11 +230,37 @@ The deployed OnlineShop app was then reachable from the EC2 public IP address.
 
 ![OnlineShop deployed on EC2](<screenshots/Screenshot 2026-07-02 192309.png>)
 
+### 7. Redo Jenkins Success Evidence
+
+For the redo, the Jenkinsfile was updated so the pipeline clearly detects `origin/dev` and `origin/main`. The `dev` branch builds and pushes the public development image, then pulls and deploys that image on the EC2 instance.
+
+![Jenkins dev branch detected](<screenshots/Screenshot 2026-07-09 130052.png>)
+
+The `dev` deployment console output shows the image being pulled from `joelrobinson791/capstone-app-dev`, the old container being stopped and removed if present, a new container being started, and the pipeline ending with `Finished: SUCCESS`.
+
+![Jenkins dev deployment successful](<screenshots/Screenshot 2026-07-09 130103.png>)
+
+The `main` branch was promoted using a no-fast-forward merge so Jenkins receives a new `main` commit hash and starts a production build.
+
+![No fast-forward merge pushed to main](<screenshots/Screenshot 2026-07-09 130351.png>)
+
+The `main` branch console output shows Jenkins checking out `origin/main` and using the corrected branch detection.
+
+![Jenkins main branch detected](<screenshots/Screenshot 2026-07-09 130424.png>)
+
+Because the production Docker Hub repository is private, the EC2 deploy step logs in to Docker Hub before pulling `joelrobinson791/capstone-app`. The final console output shows the image pull, container replacement, and `Finished: SUCCESS`.
+
+![Jenkins main deployment successful](<screenshots/Screenshot 2026-07-09 130432.png>)
+
 ## AWS EC2 Deployment
 
 Docker was installed and enabled on the EC2 instance so Jenkins could deploy the container remotely.
 
 ![Docker setup on EC2](<screenshots/Screenshot 2026-07-02 183546.png>)
+
+The latest deployment target is the running EC2 app server with public IP `34.192.210.74`.
+
+![AWS EC2 app server running](<screenshots/Screenshot 2026-07-09 130714.png>)
 
 The Jenkins deployment stage performs these actions on the server:
 
@@ -218,9 +275,13 @@ The deployment target shown in the Jenkinsfile is:
 34.192.210.74
 ```
 
+After the successful Jenkins run, the OnlineShop app was reachable from the EC2 public IP.
+
+![OnlineShop available on EC2](<screenshots/Screenshot 2026-07-09 130735.png>)
+
 ## Local Monitoring Setup
 
-### 7. Start Prometheus, Grafana, and Blackbox Exporter Locally
+### 8. Start Prometheus, Grafana, and Blackbox Exporter Locally
 
 Because of AWS cost considerations, monitoring was demonstrated locally instead of hosting Prometheus and Grafana in AWS. The app image was run alongside the monitoring tools inside a local Docker environment.
 
@@ -248,7 +309,7 @@ Prometheus:        http://localhost:9090
 Blackbox Exporter: http://localhost:9115
 ```
 
-### 8. Confirm Blackbox Exporter
+### 9. Confirm Blackbox Exporter
 
 Blackbox Exporter is available on `localhost:9115`.
 
@@ -258,7 +319,7 @@ After probing the app, Blackbox Exporter shows successful checks for the `http_2
 
 ![Blackbox successful probes](<screenshots/Screenshot 2026-07-07 190409.png>)
 
-### 9. Confirm Prometheus
+### 10. Confirm Prometheus
 
 Prometheus is available on `localhost:9090` and is used as the metrics source for the monitoring setup.
 
@@ -291,7 +352,7 @@ scrape_configs:
         replacement: blackbox-exporter:9115
 ```
 
-### 10. Confirm Grafana
+### 11. Confirm Grafana
 
 Grafana is available on `localhost:3000`.
 
@@ -303,7 +364,7 @@ Grafana was connected to Prometheus and used to visualize the `probe_success` me
 
 The graph shows `probe_success` staying at `1` while the web app is reachable.
 
-### 11. Validate Failure Detection
+### 12. Validate Failure Detection
 
 The local `web` container was stopped to confirm that monitoring detects downtime.
 
@@ -321,14 +382,15 @@ The browser also confirmed that `localhost` was no longer reachable after stoppi
 
 The Jenkins pipeline follows this process:
 
-1. Detect the branch that triggered the build.
+1. Detect the Git branch that triggered the build.
 2. Read the short Git commit hash.
 3. Choose the production or development Docker image name.
 4. Build the Docker image.
-5. Log in to Docker Hub using Jenkins credentials.
+5. Log in to Docker Hub from Jenkins using Jenkins credentials.
 6. Push a unique image tag and a readable image tag.
 7. SSH into the EC2 instance.
-8. Pull and run the new container.
+8. For `origin/main`, log in to Docker Hub from EC2 because the production repository is private.
+9. Pull and run the new container.
 
 The Jenkins pipeline expects these credential IDs:
 
@@ -340,8 +402,15 @@ ssh-credentials
 The image naming strategy is:
 
 ```text
-main branch:  joelrobinson791/capstone-app
-other branch: joelrobinson791/capstone-app-dev
+origin/main: joelrobinson791/capstone-app
+origin/dev:  joelrobinson791/capstone-app-dev
+```
+
+The branch deployment strategy is:
+
+```text
+origin/main: private production image, Docker login on EC2, deploy to EC2
+origin/dev:  public development image, direct pull on EC2, deploy to EC2
 ```
 
 ## Local Run
