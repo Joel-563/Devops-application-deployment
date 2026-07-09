@@ -230,25 +230,64 @@ The deployed OnlineShop app was then reachable from the EC2 public IP address.
 
 ![OnlineShop deployed on EC2](<screenshots/Screenshot 2026-07-02 192309.png>)
 
-### 7. Redo Jenkins Success Evidence
+### 7. Rework Jenkins and Promote Dev to Main
 
-For the redo, the Jenkinsfile was updated so the pipeline clearly detects `origin/dev` and `origin/main`. The `dev` branch builds and pushes the public development image, then pulls and deploys that image on the EC2 instance.
+For the redo, I first tested the Jenkins pipeline from the `dev` branch. This is the branch where I made pipeline changes before promoting them to `main`.
+
+```bash
+git checkout dev
+git add .
+git commit -m "jenkins file edited"
+git push capstone dev
+```
+
+![Jenkinsfile change pushed to dev](<screenshots/Screenshot 2026-07-09 130009.png>)
+
+After pushing `dev`, I opened Jenkins and checked the console output. Jenkins checked out `origin/dev`, which confirmed that the build was running from the development branch.
 
 ![Jenkins dev branch detected](<screenshots/Screenshot 2026-07-09 130052.png>)
 
-The `dev` deployment console output shows the image being pulled from `joelrobinson791/capstone-app-dev`, the old container being stopped and removed if present, a new container being started, and the pipeline ending with `Finished: SUCCESS`.
+The `dev` pipeline then built the image, pushed it to Docker Hub, SSHed into the EC2 instance, pulled the public development image `joelrobinson791/capstone-app-dev`, recreated the container, and ended with `Finished: SUCCESS`.
 
 ![Jenkins dev deployment successful](<screenshots/Screenshot 2026-07-09 130103.png>)
 
-The `main` branch was promoted using a no-fast-forward merge so Jenkins receives a new `main` commit hash and starts a production build.
+Next, I needed to merge `dev` into `main` for production deployment. A normal merge can become a fast-forward merge when `main` has no separate new commits. In that case, `main` and `dev` end up pointing to the same commit hash. Jenkins may then skip the `main` build because it has already seen that same commit on `dev`.
 
-![No fast-forward merge pushed to main](<screenshots/Screenshot 2026-07-09 130351.png>)
+To avoid that, I checked the current hashes and used a no-fast-forward merge. This creates a new merge commit on `main`, so Jenkins receives a fresh `origin/main` revision.
 
-The `main` branch console output shows Jenkins checking out `origin/main` and using the corrected branch detection.
+```bash
+git rev-parse --short dev
+git checkout main
+git status
+git rev-parse --short main
+git merge --no-ff dev -m "Merge dev into main"
+```
+
+![No fast-forward merge creates a new main commit](<screenshots/Screenshot 2026-07-09 122542.png>)
+
+After the merge commit was created, I pushed `main` to GitHub.
+
+```bash
+git push capstone main
+```
+
+![No fast-forward merge pushed to main](<screenshots/Screenshot 2026-07-09 122639.png>)
+
+I repeated the same no-fast-forward promotion after the final Jenkinsfile correction, then pushed the updated `main` branch again.
+
+```bash
+git checkout main
+git merge --no-ff dev -m "Merge dev into main, jenkins file changed again"
+git push capstone
+```
+
+![Final no-fast-forward promotion to main](<screenshots/Screenshot 2026-07-09 130351.png>)
+
+Once `main` was pushed with a new merge commit, Jenkins detected `origin/main` and started the production pipeline.
 
 ![Jenkins main branch detected](<screenshots/Screenshot 2026-07-09 130424.png>)
 
-Because the production Docker Hub repository is private, the EC2 deploy step logs in to Docker Hub before pulling `joelrobinson791/capstone-app`. The final console output shows the image pull, container replacement, and `Finished: SUCCESS`.
+The production Docker Hub repository is private, so the `main` deployment logs in to Docker Hub from the EC2 instance before pulling `joelrobinson791/capstone-app`. The final console output shows the private image being pulled, the container being recreated, and the pipeline ending with `Finished: SUCCESS`.
 
 ![Jenkins main deployment successful](<screenshots/Screenshot 2026-07-09 130432.png>)
 
