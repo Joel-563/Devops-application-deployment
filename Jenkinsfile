@@ -10,7 +10,8 @@ pipeline {
   stages {
     stage('check branch') {
       steps {
-        echo "Triggered by branch: ${env.BRANCH_NAME}"
+        echo "Triggered by Git branch: ${env.GIT_BRANCH}"
+        echo "Jenkins branch name: ${env.BRANCH_NAME}"
       }
     }
 
@@ -25,7 +26,7 @@ pipeline {
     stage('image build and docker push') {
       steps {
         script {
-          if (env.BRANCH_NAME == 'main') {
+          if (env.GIT_BRANCH == 'origin/main') {
             env.IMAGE_URI_READABLE = "${params.IMAGE_NAME_PROD}:${params.VERSION}"
             env.IMAGE_URI_UNIQUE = "${params.IMAGE_NAME_PROD}:${params.VERSION}-${env.COMMIT_HASH}"
           } else {
@@ -49,14 +50,13 @@ pipeline {
 
     stage('deploy to server (instance)') {
       when {
-        anyOf {
-          branch 'main'
-          branch 'dev'
+        expression {
+          return env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'origin/dev'
         }
       }
       steps {
         script {
-          if (env.BRANCH_NAME == 'main') {
+          if (env.GIT_BRANCH == 'origin/main') {
             withCredentials([
               sshUserPrivateKey(credentialsId: 'ssh-credentials', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER'),
               usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')
