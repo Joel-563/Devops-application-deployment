@@ -20,19 +20,19 @@ jobs:
 
       - name: storing short hash
         env:
-          SHORT_SHA: ${{steps.commit.outputs.short}}
+          SHORT_HASH: ${{steps.commit.outputs.short}}
         run: |
-          echo " SHORT_HASH=$SHORT_SHA" >> $GITHUB_ENV
+          echo "SHORT_HASH=$SHORT_HASH" >> $GITHUB_ENV
       - name: print short hash
         run: echo "SHORT_HASH = $SHORT_HASH"
       - name: adding two values
         id: script_hash
         run: |
-          echo "sum = $(( 2 + 2 ))" >> $GITHUB_ENV
+          echo "sum=$(( 2 + 2 ))" >> $GITHUB_ENV
       - name: print sum
         run: echo "sum = $sum"
     outputs:
-      SHORT_SHA: ${{steps.commit.outputs.short}}
+      SHORT_HASH: ${{steps.commit.outputs.short}}
       script_hash: ${{steps.script_hash.outputs.sum}}
   # build-and-push:
   #   needs: pre-build
@@ -43,7 +43,7 @@ jobs:
 
   #     - name: docker-image-build
   #       env:
-  #         unique_tag: ${{inputs.IMAGE_NAME_DEV}}:$SHORT_SHA
+  #         unique_tag: ${{inputs.IMAGE_NAME_DEV}}:$SHORT_HASH
   #         readable_tag: ${{inputs.IMAGE_NAME_DEV}}:latest
   #       run: |
   #         echo "unique_tag = $unique_tag"
