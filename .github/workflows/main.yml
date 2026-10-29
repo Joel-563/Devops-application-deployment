@@ -37,8 +37,3 @@ jobs:
         run: |
           echo "unique_tag = $unique_tag"
           echo "readable_tag = $readable_tag"
-
-
-
-
-
