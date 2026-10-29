@@ -1,0 +1,29 @@
+name: build_and_push_to_docker_hub
+on:
+  push:
+    branches: dev
+  workflow_dispatch:
+    inputs:
+      IMAGE_NAME_DEV:
+        description: "Docker image name for development"
+        type: string
+        default: joelrobinson791/capstone-app-dev
+        required: true
+permissions: read-all
+jobs:
+  pre-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: getting commit hash
+        id: commit
+        uses: prompt/actions-commit-hash@v4
+
+      - name: storing short hash
+        env:
+          SHORT_SHA: ${{steps.commit.outputs.short}}
+        run: |
+          echo " SHORT_HASH = $SHORT_SHA"
+        
+        
+          
+
