@@ -23,6 +23,21 @@ jobs:
           SHORT_SHA: ${{steps.commit.outputs.short}}
         run: |
           echo " SHORT_HASH = $SHORT_SHA"
+  build-and-push:
+    needs: pre-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: git-chechout
+        uses: actions/checkout@v7
+
+      - name: docker-image-build
+        env:
+          unique_tag: ${{inputs.IMAGE_NAME_DEV}}:$SHORT_SHA
+          redable_tag: ${{inputs.IMAGE_NAME_DEV}}:latest
+        run: |
+          echo "unique_tag = $unique_tag"
+          echo "readable_tag = $readable_tag"
+    
         
         
           
