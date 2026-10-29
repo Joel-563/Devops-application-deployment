@@ -34,17 +34,17 @@ jobs:
     outputs:
       SHORT_HASH: ${{steps.commit.outputs.short}}
       script_hash: ${{steps.script_hash.outputs.sum}}
-  # build-and-push:
-  #   needs: pre-build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: git-chechout
-  #       uses: actions/checkout@v7
+  build-and-push:
+    needs: pre-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: git-chechout
+        uses: actions/checkout@v7
 
-  #     - name: docker-image-build
-  #       env:
-  #         unique_tag: ${{inputs.IMAGE_NAME_DEV}}:$SHORT_HASH
-  #         readable_tag: ${{inputs.IMAGE_NAME_DEV}}:latest
-  #       run: |
-  #         echo "unique_tag = $unique_tag"
-  #         echo "readable_tag = $readable_tag"
+      - name: docker-image-build
+        env:
+          unique_tag: ${{inputs.IMAGE_NAME_DEV}}:${{needs.pre-build.outputs.SHORT_HASH}}
+          readable_tag: ${{inputs.IMAGE_NAME_DEV}}:latest-${{needs.pre-build.outputs.script_hash}}
+        run: |
+          echo "unique_tag = $unique_tag"
+          echo "readable_tag = $readable_tag"
