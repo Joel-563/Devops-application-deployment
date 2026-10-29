@@ -22,9 +22,16 @@ jobs:
         env:
           SHORT_SHA: ${{steps.commit.outputs.short}}
         run: |
-          echo " SHORT_HASH = $SHORT_SHA"
+          echo " SHORT_HASH=$SHORT_SHA" >> $GITHUB_ENV
       - name: print short hash
         run: echo "SHORT_HASH = $SHORT_SHA"
+      - name: executing script to get hash of script
+        id: script_hash
+        run: |
+          echo "script_hash=$(sha256sum .github/workflows/main.yml | awk '{print $1}')" >> $GITHUB_ENV
+    outputs:
+      SHORT_SHA: ${{steps.commit.outputs.short}}
+      script_hash:
   # build-and-push:
   #   needs: pre-build
   #   runs-on: ubuntu-latest
